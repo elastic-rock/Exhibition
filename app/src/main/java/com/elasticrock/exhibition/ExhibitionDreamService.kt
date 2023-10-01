@@ -27,7 +27,7 @@ class ExhibitionDreamService : DreamService() {
 
     data class Image(
         val uri: Uri,
-        val exposure: String?,
+        val exposure: Double?,
         val aperture: String?,
         val iso: Int?,
         val path: String,
@@ -89,7 +89,7 @@ class ExhibitionDreamService : DreamService() {
                 while (cursor.moveToNext()) {
 
                     val id = cursor.getLong(idColumn)
-                    val exposure = cursor.getString(exposureColumn)
+                    val exposure = cursor.getDouble(exposureColumn)
                     val aperture = cursor.getString(apertureColumn)
                     val iso = cursor.getInt(isoColumn)
                     val data = cursor.getString(dataColumn)
@@ -141,7 +141,7 @@ class ExhibitionDreamService : DreamService() {
             }
 
             findViewById<TextView>(R.id.path).text = path
-            findViewById<TextView>(R.id.photo_properties).text = "1/${exposure}, $aperture, $iso"
+            findViewById<TextView>(R.id.photo_properties).text = "$exposure, f$aperture, $iso"
 
             fun formatDateTime(context: Context, dateTaken: Long): String {
                 val now = System.currentTimeMillis()
