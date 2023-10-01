@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">Exhibition</string>
+    <string name="grant_access_to_storage">Grant access to storage</string>
+    <string name="permission_granted">Permission granted</string>
+    <string name="image_timeout">Image timeout</string>
+    <plurals name="second">
+        <item quantity="one">%d second</item>
+        <item quantity="other">%d seconds</item>
+    </plurals>
+    <string name="no_files_found">No files found</string>
 </resources>
