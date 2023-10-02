@@ -25,7 +25,6 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.random.Random
 
@@ -38,15 +37,6 @@ class ExhibitionDreamService : DreamService() {
     private val mainScope = MainScope()
 
     data class Image(
-        val uri: Uri,
-        val exposure: Double?,
-        val aperture: String?,
-        val iso: Int?,
-        val path: String,
-        val datetaken: Long?
-    )
-
-    data class ImageWithoutMetadata(
         val uri: Uri,
         val exposure: Double?,
         val aperture: String?,
@@ -232,7 +222,7 @@ class ExhibitionDreamService : DreamService() {
                 null
             }
 
-            findViewById<TextView>(R.id.metadata).text = "$date \n$exposure, f$aperture, $iso \n$path"
+//            findViewById<TextView>(R.id.metadata).text = "$date \n$exposure, f$aperture, $iso \n$path"
             findViewById<TextView>(R.id.metadata).text = "$date \n$path"
 
             postDelayed(
