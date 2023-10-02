@@ -13,6 +13,7 @@ import android.provider.MediaStore.Images
 import android.provider.MediaStore.getVersion
 import android.service.dreams.DreamService
 import android.text.format.DateUtils
+import android.util.Log
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.widget.ImageView
@@ -37,6 +38,15 @@ class ExhibitionDreamService : DreamService() {
     private val mainScope = MainScope()
 
     data class Image(
+        val uri: Uri,
+        val exposure: Double?,
+        val aperture: String?,
+        val iso: Int?,
+        val path: String,
+        val datetaken: Long?
+    )
+
+    data class ImageWithoutMetadata(
         val uri: Uri,
         val exposure: Double?,
         val aperture: String?,
@@ -91,19 +101,44 @@ class ExhibitionDreamService : DreamService() {
                 null)
             query?.use { cursor ->
 
+                val exposureColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    cursor.getColumnIndexOrThrow(Images.Media.EXPOSURE_TIME)
+                } else {
+                    null
+                }
+                val apertureColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    cursor.getColumnIndexOrThrow(Images.Media.F_NUMBER)
+                } else {
+                    null
+                }
+                val isoColumn = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    cursor.getColumnIndexOrThrow(Images.Media.ISO)
+                } else {
+                    null
+                }
+
                 val idColumn = cursor.getColumnIndexOrThrow(Images.Media._ID)
-                val exposureColumn = cursor.getColumnIndexOrThrow(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { Images.Media.EXPOSURE_TIME } else { null })
-                val apertureColumn = cursor.getColumnIndexOrThrow(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { Images.Media.F_NUMBER } else { null })
-                val isoColumn = cursor.getColumnIndexOrThrow(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { Images.Media.ISO } else { null })
                 val dataColumn = cursor.getColumnIndexOrThrow(Images.Media.DATA)
                 val dateColumn = cursor.getColumnIndexOrThrow(Images.Media.DATE_TAKEN)
 
                 while (cursor.moveToNext()) {
 
                     val id = cursor.getLong(idColumn)
-                    val exposure = cursor.getDouble(exposureColumn)
-                    val aperture = cursor.getString(apertureColumn)
-                    val iso = cursor.getInt(isoColumn)
+                    val exposure = if (exposureColumn != null) {
+                        cursor.getDouble(exposureColumn)
+                    } else {
+                        null
+                    }
+                    val aperture = if (apertureColumn != null) {
+                        cursor.getString(apertureColumn)
+                    } else {
+                        null
+                    }
+                    val iso = if (isoColumn != null) {
+                        cursor.getInt(isoColumn)
+                    } else {
+                        null
+                    }
                     val data = cursor.getString(dataColumn)
                     val date = cursor.getLong(dateColumn)
 
@@ -118,7 +153,8 @@ class ExhibitionDreamService : DreamService() {
         }
 
         mainScope.launch {
-            if (imageListCacheFile.exists() && runBlocking { DataStore(dataStore).readMediaStoreVersion() == getVersion(applicationContext) }) {
+            if (imageListCacheFile.exists() && DataStore(dataStore).readMediaStoreVersion() == getVersion(applicationContext)) {
+                Log.d("Dream", "Reading from cache")
                 val cachedText = imageListCacheFile.readText()
                 val lines = cachedText.split("\n")
 
@@ -137,14 +173,17 @@ class ExhibitionDreamService : DreamService() {
                     )
                 }
             } else {
-                imageListCacheFile.delete()
+                Log.d("Dream", "Indexing")
+                if (!imageListCacheFile.exists()) {
+                    imageListCacheFile.delete()
+                }
                 getImagePaths()
-                mainScope.launch { DataStore(dataStore).saveMediaStoreVersion(getVersion(applicationContext)) }
                 File.createTempFile(imageListCachePath, null, applicationContext.cacheDir)
                 val textToWrite = imageList.joinToString("\n") { image ->
                     "${image.uri}\n${image.exposure}\n${image.aperture}\n${image.iso}\n${image.path}\n${image.datetaken}"
                 }
                 imageListCacheFile.writeText(textToWrite)
+                DataStore(dataStore).saveMediaStoreVersion(getVersion(applicationContext))
             }
         }
     }
@@ -194,6 +233,7 @@ class ExhibitionDreamService : DreamService() {
             }
 
             findViewById<TextView>(R.id.metadata).text = "$date \n$exposure, f$aperture, $iso \n$path"
+            findViewById<TextView>(R.id.metadata).text = "$date \n$path"
 
             postDelayed(
                 android.os.Handler(Looper.getMainLooper()),
