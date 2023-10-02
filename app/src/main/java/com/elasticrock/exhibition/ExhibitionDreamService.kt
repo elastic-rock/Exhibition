@@ -5,25 +5,36 @@ import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.icu.text.SimpleDateFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Images
+import android.provider.MediaStore.getVersion
 import android.service.dreams.DreamService
 import android.text.format.DateUtils
-import android.util.Log
+import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.annotation.RequiresApi
 import androidx.core.os.HandlerCompat.postDelayed
-import java.util.Date
-import java.util.Locale
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import java.io.File
 import kotlin.random.Random
 
+val Context.dataStore: androidx.datastore.core.DataStore<Preferences> by preferencesDataStore(name = "preferences")
+
 class ExhibitionDreamService : DreamService() {
+
+    private val imageListCachePath = "imagelist"
+    private lateinit var imageListCacheFile : File
+    private val mainScope = MainScope()
 
     data class Image(
         val uri: Uri,
@@ -38,6 +49,7 @@ class ExhibitionDreamService : DreamService() {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        imageListCacheFile = File(applicationContext.cacheDir, imageListCachePath)
         isInteractive = false
         isFullscreen = true
         setContentView(R.layout.exhibition_dream)
@@ -105,7 +117,36 @@ class ExhibitionDreamService : DreamService() {
             }
         }
 
-        getImagePaths()
+        mainScope.launch {
+            if (imageListCacheFile.exists() && runBlocking { DataStore(dataStore).readMediaStoreVersion() == getVersion(applicationContext) }) {
+                val cachedText = imageListCacheFile.readText()
+                val lines = cachedText.split("\n")
+
+                var currentIndex = 0
+
+                while (currentIndex < lines.size) {
+                    val uri = Uri.parse(lines[currentIndex++])
+                    val exposure = lines[currentIndex++].toDoubleOrNull()
+                    val aperture = lines[currentIndex++]
+                    val iso = lines[currentIndex++].toIntOrNull()
+                    val path = lines[currentIndex++]
+                    val dateTaken = lines[currentIndex++].toLongOrNull()
+
+                    imageList.add(
+                        Image(uri, exposure, aperture, iso, path, dateTaken)
+                    )
+                }
+            } else {
+                imageListCacheFile.delete()
+                getImagePaths()
+                mainScope.launch { DataStore(dataStore).saveMediaStoreVersion(getVersion(applicationContext)) }
+                File.createTempFile(imageListCachePath, null, applicationContext.cacheDir)
+                val textToWrite = imageList.joinToString("\n") { image ->
+                    "${image.uri}\n${image.exposure}\n${image.aperture}\n${image.iso}\n${image.path}\n${image.datetaken}"
+                }
+                imageListCacheFile.writeText(textToWrite)
+            }
+        }
     }
 
     override fun onDreamingStarted() {
@@ -125,6 +166,7 @@ class ExhibitionDreamService : DreamService() {
         val numberOfURIs = imageList.size
 
         fun displayNextImage() {
+
             val imageSwitchDelayMillis = 10000L
             val currentIndex = Random.nextInt(1, numberOfURIs)
             val contentUri = imageList[currentIndex].uri
@@ -140,17 +182,18 @@ class ExhibitionDreamService : DreamService() {
                 photoImageView.setImageBitmap(bitmap)
             }
 
-            findViewById<TextView>(R.id.path).text = path
-            findViewById<TextView>(R.id.photo_properties).text = "$exposure, f$aperture, $iso"
-
-            fun formatDateTime(context: Context, dateTaken: Long): String {
+            fun formatDateTime(dateTaken: Long): String {
                 val now = System.currentTimeMillis()
                 return DateUtils.getRelativeTimeSpanString(dateTaken, now, DateUtils.MINUTE_IN_MILLIS).toString()
             }
-            if (dateRaw != null) {
-                val date = formatDateTime(this, dateRaw)
-                findViewById<TextView>(R.id.date_taken).text = date
+
+            val date : String? = if (dateRaw != null) {
+                formatDateTime(dateRaw)
+            } else {
+                null
             }
+
+            findViewById<TextView>(R.id.metadata).text = "$date \n$exposure, f$aperture, $iso \n$path"
 
             postDelayed(
                 android.os.Handler(Looper.getMainLooper()),
@@ -160,10 +203,20 @@ class ExhibitionDreamService : DreamService() {
         }
 
         if (numberOfURIs == 0) {
-            findViewById<TextView>(R.id.no_files).visibility = VISIBLE
+            mainScope.launch {
+                findViewById<TextView>(R.id.no_files).visibility = VISIBLE
+                delay(10)
+                onDreamingStarted()
+            }
         } else {
+            findViewById<TextView>(R.id.no_files).visibility = GONE
             displayNextImage()
         }
+    }
+
+    override fun onDreamingStopped() {
+        super.onDreamingStopped()
+        mainScope.cancel()
     }
 
 }
