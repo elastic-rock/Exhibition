@@ -1,5 +1,6 @@
 package com.elasticrock.exhibition
 
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -16,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +27,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.tv.material3.Button
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme.typography
@@ -32,6 +36,10 @@ import androidx.tv.material3.RadioButton
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.elasticrock.exhibition.ui.theme.ExhibitionTheme
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+
+val Context.dataStore: androidx.datastore.core.DataStore<Preferences> by preferencesDataStore(name = "preferences")
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalTvMaterial3Api::class)
@@ -43,7 +51,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     shape = RectangleShape
                 ) {
-                    ExhibitionApp()
+                    ExhibitionApp(dataStore)
                 }
             }
         }
@@ -52,8 +60,9 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun ExhibitionApp() {
+fun ExhibitionApp(dataStore: androidx.datastore.core.DataStore<Preferences>) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         "android.permission.READ_MEDIA_IMAGES"
     } else {
@@ -90,12 +99,12 @@ fun ExhibitionApp() {
             )
         }
         Text(text = stringResource(R.string.image_timeout))
-        var timeout by remember { mutableIntStateOf(10) }
-        RadioButtonPreference(selected = timeout == 30, onClick = { timeout = 30 }, description = pluralStringResource(R.plurals.second, 30, 30))
-        RadioButtonPreference(selected = timeout == 20, onClick = { timeout = 20 }, description = pluralStringResource(R.plurals.second, 20, 20))
-        RadioButtonPreference(selected = timeout == 15, onClick = { timeout = 15 }, description = pluralStringResource(R.plurals.second, 15, 15))
-        RadioButtonPreference(selected = timeout == 10, onClick = { timeout = 10 }, description = pluralStringResource(R.plurals.second, 10, 10))
-        RadioButtonPreference(selected = timeout == 5, onClick = { timeout = 5 }, description = pluralStringResource(R.plurals.second, 5, 5))
+        var timeout by remember { mutableIntStateOf(runBlocking { DataStore(dataStore).readTimeoutValue() }) }
+        RadioButtonPreference(selected = timeout == 30000, onClick = { timeout = 30000; scope.launch { DataStore(dataStore).saveTimeoutValue(30000) } }, description = pluralStringResource(R.plurals.second, 30, 30))
+        RadioButtonPreference(selected = timeout == 20000, onClick = { timeout = 20000; scope.launch { DataStore(dataStore).saveTimeoutValue(20000) } }, description = pluralStringResource(R.plurals.second, 20, 20))
+        RadioButtonPreference(selected = timeout == 15000, onClick = { timeout = 15000; scope.launch { DataStore(dataStore).saveTimeoutValue(15000) } }, description = pluralStringResource(R.plurals.second, 15, 15))
+        RadioButtonPreference(selected = timeout == 10000, onClick = { timeout = 10000; scope.launch { DataStore(dataStore).saveTimeoutValue(10000) } }, description = pluralStringResource(R.plurals.second, 10, 10))
+        RadioButtonPreference(selected = timeout == 5000, onClick = { timeout = 5000; scope.launch { DataStore(dataStore).saveTimeoutValue(5000) } }, description = pluralStringResource(R.plurals.second, 5, 5))
     }
 }
 

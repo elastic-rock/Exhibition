@@ -2,7 +2,6 @@ package com.elasticrock.exhibition
 
 import android.content.ContentResolver
 import android.content.ContentUris
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -19,16 +18,13 @@ import android.view.View.VISIBLE
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.os.HandlerCompat.postDelayed
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.random.Random
-
-val Context.dataStore: androidx.datastore.core.DataStore<Preferences> by preferencesDataStore(name = "preferences")
 
 class ExhibitionDreamService : DreamService() {
 
@@ -196,7 +192,7 @@ class ExhibitionDreamService : DreamService() {
 
         fun displayNextImage() {
 
-            val imageSwitchDelayMillis = 10000L
+            val imageSwitchDelayMillis = runBlocking { DataStore(dataStore).readTimeoutValue().toLong() }
             val currentIndex = Random.nextInt(1, numberOfURIs)
             val contentUri = imageList[currentIndex].uri
             val path = imageList[currentIndex].path
@@ -222,8 +218,10 @@ class ExhibitionDreamService : DreamService() {
                 null
             }
 
-//            findViewById<TextView>(R.id.metadata).text = "$date \n$exposure, f$aperture, $iso \n$path"
-            findViewById<TextView>(R.id.metadata).text = "$date \n$path"
+
+            findViewById<TextView>(R.id.metadata).text = (if (date != null) {"$date\n"} else {""}) +
+                    (if (exposure != null && aperture != null && iso != null) {"$exposure, f$aperture, $iso\n"} else {""}) +
+                    path
 
             postDelayed(
                 android.os.Handler(Looper.getMainLooper()),
