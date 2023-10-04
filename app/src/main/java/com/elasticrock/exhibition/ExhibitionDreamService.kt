@@ -1,12 +1,12 @@
 package com.elasticrock.exhibition
 
+import android.annotation.SuppressLint
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
-import android.os.Looper
 import android.provider.MediaStore
 import android.provider.MediaStore.Images
 import android.provider.MediaStore.getVersion
@@ -17,12 +17,14 @@ import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.os.HandlerCompat.postDelayed
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.random.Random
 
@@ -30,7 +32,9 @@ class ExhibitionDreamService : DreamService() {
 
     private val imageListCachePath = "imagelist"
     private lateinit var imageListCacheFile : File
+    private val defaultScope = CoroutineScope(Job() + Dispatchers.Default)
     private val mainScope = MainScope()
+    private val tag = "DreamService"
 
     data class Image(
         val uri: Uri,
@@ -50,7 +54,8 @@ class ExhibitionDreamService : DreamService() {
         isFullscreen = true
         setContentView(R.layout.exhibition_dream)
 
-        fun getImagePaths() {
+        fun indexImages() {
+            Log.d(tag, "Indexing")
 
             val collection =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -138,113 +143,120 @@ class ExhibitionDreamService : DreamService() {
             }
         }
 
-        mainScope.launch {
-            if (imageListCacheFile.exists() && DataStore(dataStore).readMediaStoreVersion() == getVersion(applicationContext)) {
-                Log.d("Dream", "Reading from cache")
-                val cachedText = imageListCacheFile.readText()
-                val lines = cachedText.split("\n")
+        fun readFromCache() {
+            Log.d(tag, "Reading from cache")
+            val cachedText = imageListCacheFile.readText()
+            val lines = cachedText.split("\n")
 
-                var currentIndex = 0
+            var currentIndex = 0
 
-                while (currentIndex < lines.size) {
-                    val uri = Uri.parse(lines[currentIndex++])
-                    val exposure = lines[currentIndex++].toDoubleOrNull()
-                    val aperture = lines[currentIndex++]
-                    val iso = lines[currentIndex++].toIntOrNull()
-                    val path = lines[currentIndex++]
-                    val dateTaken = lines[currentIndex++].toLongOrNull()
+            while (currentIndex < lines.size) {
+                val uri = Uri.parse(lines[currentIndex++])
+                val exposure = lines[currentIndex++].toDoubleOrNull()
+                val aperture = lines[currentIndex++]
+                val iso = lines[currentIndex++].toIntOrNull()
+                val path = lines[currentIndex++]
+                val dateTaken = lines[currentIndex++].toLongOrNull()
 
-                    imageList.add(
-                        Image(uri, exposure, aperture, iso, path, dateTaken)
-                    )
-                }
-            } else {
-                Log.d("Dream", "Indexing")
-                if (!imageListCacheFile.exists()) {
-                    imageListCacheFile.delete()
-                }
-                getImagePaths()
-                File.createTempFile(imageListCachePath, null, applicationContext.cacheDir)
-                val textToWrite = imageList.joinToString("\n") { image ->
-                    "${image.uri}\n${image.exposure}\n${image.aperture}\n${image.iso}\n${image.path}\n${image.datetaken}"
-                }
-                imageListCacheFile.writeText(textToWrite)
-                DataStore(dataStore).saveMediaStoreVersion(getVersion(applicationContext))
-            }
-        }
-    }
-
-    override fun onDreamingStarted() {
-        super.onDreamingStarted()
-
-        fun loadBitmapFromUri(uri: Uri, contentResolver: ContentResolver): Bitmap? {
-            return try {
-                contentResolver.openInputStream(uri)?.use { inputStream ->
-                    BitmapFactory.decodeStream(inputStream)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
+                imageList.add(
+                    Image(uri, exposure, aperture, iso, path, dateTaken)
+                )
             }
         }
 
-        val numberOfURIs = imageList.size
-
-        fun displayNextImage() {
-
-            val imageSwitchDelayMillis = runBlocking { DataStore(dataStore).readTimeoutValue().toLong() }
-            val currentIndex = Random.nextInt(1, numberOfURIs)
-            val contentUri = imageList[currentIndex].uri
-            val path = imageList[currentIndex].path
-            val dateRaw = imageList[currentIndex].datetaken
-            val exposure = imageList[currentIndex].exposure
-            val aperture = imageList[currentIndex].aperture
-            val iso = imageList[currentIndex].iso
-
-            val photoImageView = findViewById<ImageView>(R.id.image_view)
-            val bitmap = loadBitmapFromUri(contentUri, contentResolver)
-            if (bitmap != null) {
-                photoImageView.setImageBitmap(bitmap)
+        suspend fun writeToCache() {
+            Log.d(tag, "Writing to cache")
+            if (!imageListCacheFile.exists()) {
+                imageListCacheFile.delete()
             }
+            File.createTempFile(imageListCachePath, null, applicationContext.cacheDir)
+            val textToWrite = imageList.joinToString("\n") { image ->
+                "${image.uri}\n${image.exposure}\n${image.aperture}\n${image.iso}\n${image.path}\n${image.datetaken}"
+            }
+            imageListCacheFile.writeText(textToWrite)
+            DataStore(dataStore).saveMediaStoreVersion(getVersion(applicationContext))
+        }
 
+        fun displayContent() {
+            val numberOfURIs = imageList.size
+
+            fun loadBitmapFromUri(uri: Uri, contentResolver: ContentResolver): Bitmap? {
+                return try {
+                    contentResolver.openInputStream(uri)?.use { inputStream ->
+                        BitmapFactory.decodeStream(inputStream)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    null
+                }
+            }
             fun formatDateTime(dateTaken: Long): String {
                 val now = System.currentTimeMillis()
                 return DateUtils.getRelativeTimeSpanString(dateTaken, now, DateUtils.MINUTE_IN_MILLIS).toString()
             }
+            fun displayImage() {
+                val currentIndex = Random.nextInt(1, numberOfURIs)
 
-            val date : String? = if (dateRaw != null) {
-                formatDateTime(dateRaw)
-            } else {
-                null
+                val contentUri = imageList[currentIndex].uri
+                val path = imageList[currentIndex].path
+                val dateRaw = imageList[currentIndex].datetaken
+                val exposure = imageList[currentIndex].exposure
+                val aperture = imageList[currentIndex].aperture
+                val iso = imageList[currentIndex].iso
+
+                val date : String? = if (dateRaw != null) {
+                    formatDateTime(dateRaw)
+                } else {
+                    null
+                }
+
+                val photoImageView = findViewById<ImageView>(R.id.image_view)
+                val bitmap = loadBitmapFromUri(contentUri, contentResolver)
+                if (bitmap != null) {
+                    photoImageView.setImageBitmap(bitmap)
+                }
+
+                @SuppressLint("SetTextI18n")
+                findViewById<TextView>(R.id.metadata).text = (if (date != null) {"$date\n"} else {""}) +
+                        (if (exposure != null && aperture != null && iso != null) {"$exposure, f$aperture, $iso\n"} else {""}) +
+                        path
             }
 
-
-            findViewById<TextView>(R.id.metadata).text = (if (date != null) {"$date\n"} else {""}) +
-                    (if (exposure != null && aperture != null && iso != null) {"$exposure, f$aperture, $iso\n"} else {""}) +
-                    path
-
-            postDelayed(
-                android.os.Handler(Looper.getMainLooper()),
-                { displayNextImage() },
-                null,
-                imageSwitchDelayMillis)
+            if (numberOfURIs == 0) {
+                Log.d(tag, "No images found")
+                findViewById<TextView>(R.id.no_files).visibility = VISIBLE
+            } else {
+                Log.d(tag, "Displaying image")
+                findViewById<TextView>(R.id.no_files).visibility = GONE
+                displayImage()
+            }
         }
 
-        if (numberOfURIs == 0) {
-            mainScope.launch {
-                findViewById<TextView>(R.id.no_files).visibility = VISIBLE
-                delay(10)
-                onDreamingStarted()
+        defaultScope.launch {
+            if (imageListCacheFile.exists() && DataStore(dataStore).readMediaStoreVersion() == getVersion(applicationContext)) {
+                readFromCache()
+            } else {
+                indexImages()
+                writeToCache()
             }
-        } else {
-            findViewById<TextView>(R.id.no_files).visibility = GONE
-            displayNextImage()
+        }
+
+        mainScope.launch {
+            val imageSwitchDelayMillis = async { DataStore(dataStore).readTimeoutValue().toLong() }
+            repeat(2147483647) {
+                displayContent()
+                delay(imageSwitchDelayMillis.await())
+            }
         }
     }
 
-    override fun onDreamingStopped() {
-        super.onDreamingStopped()
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        defaultScope.cancel()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
         mainScope.cancel()
     }
-
 }
