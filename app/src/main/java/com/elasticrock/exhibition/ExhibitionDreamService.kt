@@ -174,7 +174,7 @@ class ExhibitionDreamService : DreamService() {
                 "${image.uri}\n${image.exposure}\n${image.aperture}\n${image.iso}\n${image.path}\n${image.datetaken}"
             }
             imageListCacheFile.writeText(textToWrite)
-            DataStore(dataStore).saveMediaStoreVersion(getVersion(applicationContext))
+            DataStoreRepository(dataStore).saveMediaStoreVersion(getVersion(applicationContext))
         }
 
         fun displayContent() {
@@ -233,7 +233,7 @@ class ExhibitionDreamService : DreamService() {
         }
 
         defaultScope.launch {
-            if (imageListCacheFile.exists() && DataStore(dataStore).readMediaStoreVersion() == getVersion(applicationContext)) {
+            if (imageListCacheFile.exists() && DataStoreRepository(dataStore).readMediaStoreVersion() == getVersion(applicationContext)) {
                 readFromCache()
             } else {
                 indexImages()
@@ -242,7 +242,7 @@ class ExhibitionDreamService : DreamService() {
         }
 
         mainScope.launch {
-            val imageSwitchDelayMillis = async { DataStore(dataStore).readTimeoutValue().toLong() }
+            val imageSwitchDelayMillis = async { DataStoreRepository(dataStore).readTimeoutValue().toLong() }
             repeat(2147483647) {
                 displayContent()
                 delay(imageSwitchDelayMillis.await())

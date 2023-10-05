@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
-class DataStore(private val dataStore: DataStore<Preferences>) {
+class DataStoreRepository(private val dataStore: DataStore<Preferences>) {
 
     private val mediaStoreVersionKey = stringPreferencesKey("mediastore_version")
     private val timeoutValueKey = intPreferencesKey("timeout_value")
