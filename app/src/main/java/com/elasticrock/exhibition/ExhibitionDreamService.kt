@@ -17,9 +17,6 @@ import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.widget.ImageView
 import android.widget.TextView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -32,7 +29,6 @@ class ExhibitionDreamService : DreamService() {
 
     private val imageListCachePath = "imagelist"
     private lateinit var imageListCacheFile : File
-    private val defaultScope = CoroutineScope(Job() + Dispatchers.Default)
     private val mainScope = MainScope()
     private val tag = "DreamService"
 
@@ -141,6 +137,7 @@ class ExhibitionDreamService : DreamService() {
                     imageList += Image(contentUri, exposure, aperture, iso, data, date)
                 }
             }
+            Log.d(tag, "Finished indexing")
         }
 
         fun readFromCache() {
@@ -162,6 +159,7 @@ class ExhibitionDreamService : DreamService() {
                     Image(uri, exposure, aperture, iso, path, dateTaken)
                 )
             }
+            Log.d(tag, "Finished reading from cache")
         }
 
         suspend fun writeToCache() {
@@ -175,6 +173,7 @@ class ExhibitionDreamService : DreamService() {
             }
             imageListCacheFile.writeText(textToWrite)
             DataStoreRepository(dataStore).saveMediaStoreVersion(getVersion(applicationContext))
+            Log.d(tag, "Finished writing to cache")
         }
 
         fun displayContent() {
@@ -232,7 +231,7 @@ class ExhibitionDreamService : DreamService() {
             }
         }
 
-        defaultScope.launch {
+        mainScope.launch {
             if (imageListCacheFile.exists() && DataStoreRepository(dataStore).readMediaStoreVersion() == getVersion(applicationContext)) {
                 readFromCache()
             } else {
@@ -248,11 +247,6 @@ class ExhibitionDreamService : DreamService() {
                 delay(imageSwitchDelayMillis.await())
             }
         }
-    }
-
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        defaultScope.cancel()
     }
 
     override fun onDestroy() {
