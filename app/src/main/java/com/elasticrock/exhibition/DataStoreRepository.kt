@@ -13,26 +13,7 @@ import java.io.IOException
 
 class DataStoreRepository(private val dataStore: DataStore<Preferences>) {
 
-    private val mediaStoreVersionKey = stringPreferencesKey("mediastore_version")
     private val timeoutValueKey = intPreferencesKey("timeout_value")
-
-    suspend fun saveMediaStoreVersion(version: String) {
-        try {
-            dataStore.edit { preferences ->
-                preferences[mediaStoreVersionKey] = version
-            }
-        } catch (e: IOException) {
-            Log.e("DataStore","Error writing MediaStore version")
-        }
-    }
-
-    suspend fun readMediaStoreVersion() : String {
-        val mediaStoreVersion: Flow<String> = dataStore.data
-            .map { preferences ->
-                preferences[mediaStoreVersionKey] ?: ""
-            }
-        return mediaStoreVersion.first()
-    }
 
     suspend fun saveTimeoutValue(timeout: Int) {
         try {

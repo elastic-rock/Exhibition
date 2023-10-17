@@ -8,4 +8,5 @@
         <item quantity="other">%d seconds</item>
     </plurals>
     <string name="no_files_found">No files found</string>
+    <string name="access_to_storage_not_granted">Access to storage not granted</string>
 </resources>
