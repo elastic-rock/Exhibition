@@ -61,8 +61,6 @@ class ExhibitionDreamService : DreamService() {
         isFullscreen = true
         setContentView(R.layout.exhibition_dream)
 
-        Log.d(tag, "Indexing")
-
         val collection =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 Images.Media.getContentUri(
@@ -147,14 +145,15 @@ class ExhibitionDreamService : DreamService() {
                 imageList += Image(contentUri, exposure, aperture, iso, data, date)
             }
         }
-
-        Log.d(tag, "Finished indexing")
     }
 
     override fun onDreamingStarted() {
         super.onDreamingStarted()
 
         val numberOfURIs = imageList.size
+
+        val imageHistoryList = mutableListOf<Int>()
+        val imageHistoryListMaxSize = if (numberOfURIs >= 120) { 60 } else { numberOfURIs/2 }
 
         fun displayContent() {
 
@@ -174,7 +173,23 @@ class ExhibitionDreamService : DreamService() {
                 return DateUtils.getRelativeTimeSpanString(dateTaken, now, DateUtils.MINUTE_IN_MILLIS).toString()
             }
 
-            val currentIndex = Random.nextInt(1, numberOfURIs)
+            fun getIndex(): Int {
+                var randomIndex: Int
+
+                if (imageHistoryList.size >= imageHistoryListMaxSize) {
+                    imageHistoryList.removeFirst()
+                }
+
+                do {
+                    randomIndex = Random.nextInt(1, numberOfURIs)
+                } while (randomIndex in imageHistoryList)
+
+                imageHistoryList.add(randomIndex)
+
+                return randomIndex
+            }
+
+            val currentIndex = getIndex()
 
             val contentUri = imageList[currentIndex].uri
             val path = imageList[currentIndex].path
@@ -202,14 +217,13 @@ class ExhibitionDreamService : DreamService() {
         }
 
         if (numberOfURIs == 0) {
-            Log.d(tag, "No images found")
+            Log.e(tag, "No images found")
             findViewById<TextView>(R.id.no_files).visibility = VISIBLE
         } else {
-            Log.d(tag, "Displaying images")
             findViewById<TextView>(R.id.no_files).visibility = GONE
             mainScope.launch {
                 val imageSwitchDelayMillis = async { DataStoreRepository(dataStore).readTimeoutValue().toLong() }
-                repeat(Int.MAX_VALUE) {
+                while (true) {
                     displayContent()
                     delay(imageSwitchDelayMillis.await())
                 }
