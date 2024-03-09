@@ -12,7 +12,6 @@ import android.provider.MediaStore
 import android.provider.MediaStore.Images
 import android.service.dreams.DreamService
 import android.text.format.DateUtils
-import android.util.Log
 import android.view.View.GONE
 import android.view.View.VISIBLE
 import android.widget.ImageView
@@ -30,7 +29,6 @@ import kotlin.random.Random
 class ExhibitionDreamService : DreamService() {
 
     private val mainScope = MainScope()
-    private val tag = "DreamService"
 
     data class Image(
         val uri: Uri,
@@ -155,6 +153,26 @@ class ExhibitionDreamService : DreamService() {
         val imageHistoryList = mutableListOf<Int>()
         val imageHistoryListMaxSize = if (numberOfURIs >= 120) { 60 } else { numberOfURIs/2 }
 
+        fun findCommonPrefix(strings: List<String>): String {
+            if (strings.isEmpty()) return ""
+
+            // Sort the strings to find the common prefix
+            val sortedStrings = strings.sorted()
+            val first = sortedStrings.first()
+            val last = sortedStrings.last()
+
+            // Find the common prefix between the first and last strings
+            var i = 0
+            while (i < first.length && i < last.length && first[i] == last[i]) {
+                i++
+            }
+
+            // Return the common prefix
+            return first.substring(0, i)
+        }
+
+        val commonPrefix = findCommonPrefix(imageList.map { it.path })
+
         fun displayContent() {
 
             fun loadBitmapFromUri(uri: Uri, contentResolver: ContentResolver): Bitmap? {
@@ -192,7 +210,7 @@ class ExhibitionDreamService : DreamService() {
             val currentIndex = getIndex()
 
             val contentUri = imageList[currentIndex].uri
-            val path = imageList[currentIndex].path
+            val path = imageList[currentIndex].path.removePrefix(commonPrefix)
             val dateRaw = imageList[currentIndex].datetaken
             val exposure = imageList[currentIndex].exposure
             val aperture = imageList[currentIndex].aperture
@@ -217,7 +235,6 @@ class ExhibitionDreamService : DreamService() {
         }
 
         if (numberOfURIs == 0) {
-            Log.e(tag, "No images found")
             findViewById<TextView>(R.id.no_files).visibility = VISIBLE
         } else {
             findViewById<TextView>(R.id.no_files).visibility = GONE
