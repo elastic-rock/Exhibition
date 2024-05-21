@@ -50,17 +50,17 @@ android {
 
 dependencies {
 
-    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation(platform("androidx.compose:compose-bom:2024.02.02"))
+    implementation(platform("androidx.compose:compose-bom:2024.05.00"))
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.tv:tv-foundation:1.0.0-alpha10")
-    implementation("androidx.tv:tv-material:1.0.0-alpha10")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    implementation("androidx.datastore:datastore-preferences:1.0.0")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.02"))
+    implementation("androidx.tv:tv-material:1.0.0-beta01")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.0")
+    implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.05.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest:1.6.3")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.6.7")
 }
